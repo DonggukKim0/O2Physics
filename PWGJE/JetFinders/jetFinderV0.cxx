@@ -13,30 +13,29 @@
 //
 /// \author Nima Zardoshti <nima.zardoshti@cern.ch>
 
-#include <Framework/ASoA.h>
-#include <Framework/AnalysisHelpers.h>
-#include <Framework/Configurable.h>
-#include <Framework/Expressions.h>
-#include <Framework/HistogramRegistry.h>
-#include <Framework/HistogramSpec.h>
-#include <Framework/InitContext.h>
-#include <Framework/O2DatabasePDGPlugin.h>
-#include <Framework/runDataProcessing.h> // IWYU pragma: keep (needed in tasks)
-
-#include <string>
-#include <vector>
-
-#include <fastjet/JetDefinition.hh>
-#include <fastjet/PseudoJet.hh>
-
-#include <THn.h>
-#include <TMathBase.h>
-
 #include "PWGJE/Core/JetDerivedDataUtilities.h"
 #include "PWGJE/Core/JetFinder.h"
 #include "PWGJE/Core/JetFindingUtilities.h"
 #include "PWGJE/DataModel/Jet.h"
 #include "PWGJE/DataModel/JetReducedData.h"
+
+#include <Framework/ASoA.h>
+#include <Framework/AnalysisHelpers.h>
+#include <Framework/Configurable.h>
+#include <Framework/HistogramRegistry.h>
+#include <Framework/HistogramSpec.h>
+#include <Framework/InitContext.h>
+#include <Framework/O2DatabasePDGPlugin.h>
+#include <Framework/runDataProcessing.h> // IWYU pragma: export
+
+#include <THn.h>
+#include <TMathBase.h>
+
+#include <fastjet/JetDefinition.hh>
+#include <fastjet/PseudoJet.hh>
+
+#include <string>
+#include <vector>
 
 using namespace o2;
 using namespace o2::framework;
@@ -93,6 +92,7 @@ struct JetFinderV0Task {
   Configurable<int> jetPtBinWidth{"jetPtBinWidth", 5, "used to define the width of the jetPt bins for the THnSparse"};
   Configurable<bool> fillTHnSparse{"fillTHnSparse", true, "switch to fill the THnSparse"};
   Configurable<double> jetExtraParam{"jetExtraParam", -99.0, "sets the _extra_param in fastjet"};
+  Configurable<bool> useV0SignalFlags{"useV0SignalFlags", true, "use V0 signal flags table"};
 
   Service<o2::framework::O2DatabasePDG> pdgDatabase;
   int trackSelection = -1;
@@ -153,15 +153,14 @@ struct JetFinderV0Task {
     double jetPtMinDouble = static_cast<double>(jetPtMinInt);
     double jetPtMaxDouble = static_cast<double>(jetPtMaxInt);
 
-    registry.add("hJet", "sparse for data or mcd jets", {HistType::kTHnC, {{jetRadiiBins, ""}, {jetPtBinNumber, jetPtMinDouble, jetPtMaxDouble}, {40, -1.0, 1.0}, {18, 0.0, 7.0}}});
-    registry.add("hJetMCP", "sparse for mcp jets", {HistType::kTHnC, {{jetRadiiBins, ""}, {jetPtBinNumber, jetPtMinDouble, jetPtMaxDouble}, {40, -1.0, 1.0}, {18, 0.0, 7.0}}});
+    registry.add("hJet", "sparse for data or mcd jets", {HistType::kTHnD, {{jetRadiiBins, ""}, {jetPtBinNumber, jetPtMinDouble, jetPtMaxDouble}, {40, -1.0, 1.0}, {18, 0.0, 7.0}}});
+    registry.add("hJetMCP", "sparse for mcp jets", {HistType::kTHnD, {{jetRadiiBins, ""}, {jetPtBinNumber, jetPtMinDouble, jetPtMaxDouble}, {40, -1.0, 1.0}, {18, 0.0, 7.0}}});
   }
 
-  Filter collisionFilter = (nabs(aod::jcollision::posZ) < vertexZCut && aod::jcollision::centrality >= centralityMin && aod::jcollision::centrality < centralityMax && aod::jcollision::trackOccupancyInTimeRange <= trackOccupancyInTimeRangeMax && ((skipMBGapEvents.node() == false) || (aod::jcollision::subGeneratorId != static_cast<int>(jetderiveddatautilities::JCollisionSubGeneratorId::mbGap))));
+  Filter collisionFilter = (nabs(aod::jcollision::posZ) < vertexZCut && aod::jcollision::centFT0M >= centralityMin && aod::jcollision::centFT0M < centralityMax && aod::jcollision::trackOccupancyInTimeRange <= trackOccupancyInTimeRangeMax && ((skipMBGapEvents.node() == false) || (aod::jcollision::subGeneratorId != static_cast<int>(jetderiveddatautilities::JCollisionSubGeneratorId::mbGap))));
   Filter mcCollisionFilter = ((skipMBGapEvents.node() == false) || (aod::jmccollision::subGeneratorId != static_cast<int>(jetderiveddatautilities::JCollisionSubGeneratorId::mbGap))); // should we add a posZ vtx cut here or leave it to analysers?
   Filter trackCuts = (aod::jtrack::pt >= trackPtMin && aod::jtrack::pt < trackPtMax && aod::jtrack::eta >= trackEtaMin && aod::jtrack::eta <= trackEtaMax && aod::jtrack::phi >= trackPhiMin && aod::jtrack::phi <= trackPhiMax);
   Filter partCuts = (aod::jmcparticle::pt >= trackPtMin && aod::jmcparticle::pt < trackPtMax && aod::jmcparticle::eta >= trackEtaMin && aod::jmcparticle::eta <= trackEtaMax && aod::jmcparticle::phi >= trackPhiMin && aod::jmcparticle::phi <= trackPhiMax);
-  // Filter candidateCuts = (aod::hfcand::pt >= candPtMin && aod::hfcand::pt < candPtMax && aod::hfcand::y >= candYMin && aod::hfcand::y < candYMax);
 
   // function that generalically processes Data and reco level events
   template <typename T, typename U, typename V, typename M, typename N>
@@ -171,7 +170,7 @@ struct JetFinderV0Task {
       return;
     }
     inputParticles.clear();
-    if (!jetfindingutilities::analyseV0s(inputParticles, candidates, candPtMin, candPtMax, candYMin, candYMax, candIndex)) {
+    if (!jetfindingutilities::analyseV0s(inputParticles, candidates, candPtMin, candPtMax, candYMin, candYMax, candIndex, useV0SignalFlags)) {
       return;
     }
 
@@ -192,7 +191,7 @@ struct JetFinderV0Task {
   {
 
     inputParticles.clear();
-    if (!jetfindingutilities::analyseV0s(inputParticles, candidates, candPtMin, candPtMax, candYMin, candYMax, candIndex)) {
+    if (!jetfindingutilities::analyseV0s(inputParticles, candidates, candPtMin, candPtMax, candYMin, candYMax, candIndex, useV0SignalFlags)) {
       return;
     }
     jetfindingutilities::analyseParticles<true>(inputParticles, particleSelection, jetTypeParticleLevel, particles, pdgDatabase, &candidates);

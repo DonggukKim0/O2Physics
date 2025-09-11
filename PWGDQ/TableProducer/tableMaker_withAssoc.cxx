@@ -23,46 +23,49 @@
 #include <string>
 #include <vector>
 // other includes
-#include "Framework/AnalysisTask.h"
-#include "Framework/AnalysisDataModel.h"
-#include "Framework/ASoAHelpers.h"
-#include "Framework/DataTypes.h"
-#include "Framework/runDataProcessing.h"
-#include "CCDB/BasicCCDBManager.h"
-#include "Common/DataModel/Multiplicity.h"
-#include "Common/DataModel/EventSelection.h"
-#include "Common/DataModel/Centrality.h"
+#include "PWGDQ/Core/AnalysisCompositeCut.h"
+#include "PWGDQ/Core/AnalysisCut.h"
+#include "PWGDQ/Core/CutsLibrary.h"
+#include "PWGDQ/Core/HistogramManager.h"
+#include "PWGDQ/Core/HistogramsLibrary.h"
+#include "PWGDQ/Core/VarManager.h"
+#include "PWGDQ/DataModel/ReducedInfoTables.h"
+
 #include "Common/CCDB/TriggerAliases.h"
+#include "Common/Core/TableHelper.h"
+#include "Common/DataModel/Centrality.h"
+#include "Common/DataModel/CollisionAssociationTables.h"
+#include "Common/DataModel/EventSelection.h"
+#include "Common/DataModel/FwdTrackReAlignTables.h"
+#include "Common/DataModel/MftmchMatchingML.h"
+#include "Common/DataModel/Multiplicity.h"
 #include "Common/DataModel/PIDResponse.h"
 #include "Common/DataModel/TrackSelectionTables.h"
-#include "Common/DataModel/MftmchMatchingML.h"
-#include "Common/DataModel/FwdTrackReAlignTables.h"
-#include "Common/Core/TableHelper.h"
-#include "PWGDQ/DataModel/ReducedInfoTables.h"
-#include "PWGDQ/Core/VarManager.h"
-#include "PWGDQ/Core/HistogramManager.h"
-#include "PWGDQ/Core/AnalysisCut.h"
-#include "PWGDQ/Core/AnalysisCompositeCut.h"
-#include "PWGDQ/Core/HistogramsLibrary.h"
-#include "PWGDQ/Core/CutsLibrary.h"
+#include "EventFiltering/Zorro.h"
+
+#include "CCDB/BasicCCDBManager.h"
+#include "CommonDataFormat/InteractionRecord.h"
+#include "DataFormatsGlobalTracking/RecoContainer.h"
 #include "DataFormatsGlobalTracking/RecoContainerCreateTracksVariadic.h"
+#include "DataFormatsITSMFT/ROFRecord.h"
+#include "DataFormatsParameters/GRPMagField.h"
+#include "DataFormatsParameters/GRPObject.h"
+#include "DetectorsBase/GeometryManager.h"
+#include "DetectorsBase/Propagator.h"
+#include "DetectorsVertexing/PVertexerParams.h"
 #include "DetectorsVertexing/VertexTrackMatcher.h"
+#include "Field/MagneticField.h"
+#include "Framework/ASoAHelpers.h"
+#include "Framework/AnalysisDataModel.h"
+#include "Framework/AnalysisTask.h"
+#include "Framework/DataTypes.h"
+#include "Framework/runDataProcessing.h"
+#include "MathUtils/Primitive2D.h"
 #include "ReconstructionDataFormats/PrimaryVertex.h"
 #include "ReconstructionDataFormats/VtxTrackIndex.h"
 #include "ReconstructionDataFormats/VtxTrackRef.h"
-#include "DataFormatsITSMFT/ROFRecord.h"
-#include "CommonDataFormat/InteractionRecord.h"
-#include "DetectorsVertexing/PVertexerParams.h"
-#include "MathUtils/Primitive2D.h"
-#include "DataFormatsGlobalTracking/RecoContainer.h"
-#include "Common/DataModel/CollisionAssociationTables.h"
-#include "DataFormatsParameters/GRPMagField.h"
-#include "DataFormatsParameters/GRPObject.h"
-#include "Field/MagneticField.h"
+
 #include "TGeoGlobalMagField.h"
-#include "DetectorsBase/Propagator.h"
-#include "DetectorsBase/GeometryManager.h"
-#include "EventFiltering/Zorro.h"
 
 using namespace o2;
 using namespace o2::framework;
@@ -104,8 +107,8 @@ using MyEventsWithMults = soa::Join<aod::Collisions, aod::EvSels, aod::Mults>;
 using MyEventsWithFilter = soa::Join<aod::Collisions, aod::EvSels, aod::DQEventFilter>;
 using MyEventsWithMultsAndFilter = soa::Join<aod::Collisions, aod::EvSels, aod::Mults, aod::MultsExtra, aod::DQEventFilter>;
 using MyEventsWithMultsAndRapidityGapFilter = soa::Join<aod::Collisions, aod::EvSels, aod::Mults, aod::MultsExtra, aod::DQRapidityGapFilter>;
-using MyEventsWithCent = soa::Join<aod::Collisions, aod::EvSels, aod::CentFT0Cs>;
-using MyEventsWithCentAndMults = soa::Join<aod::Collisions, aod::EvSels, aod::CentFT0Cs, aod::Mults, aod::MultsExtra>;
+using MyEventsWithCent = soa::Join<aod::Collisions, aod::EvSels, aod::CentFT0Cs, aod::CentFT0As, aod::CentFT0Ms>;
+using MyEventsWithCentAndMults = soa::Join<aod::Collisions, aod::EvSels, aod::CentFT0Cs, aod::CentFT0As, aod::CentFT0Ms, aod::Mults, aod::MultsExtra>;
 using MyEventsWithMultsExtra = soa::Join<aod::Collisions, aod::EvSels, aod::Mults, aod::MultsExtra>;
 using MyMuons = soa::Join<aod::FwdTracks, aod::FwdTracksDCA>;
 using MyMuonsWithCov = soa::Join<aod::FwdTracks, aod::FwdTracksCov, aod::FwdTracksDCA>;
@@ -225,9 +228,9 @@ struct TableMaker {
 
   // CCDB connection configurables
   struct : ConfigurableGroup {
-    Configurable<string> fConfigCcdbUrl{"ccdb-url", "http://alice-ccdb.cern.ch", "url of the ccdb repository"};
-    Configurable<string> fConfigCcdbPathTPC{"ccdb-path-tpc", "Users/z/zhxiong/TPCPID/PostCalib", "base path to the ccdb object"};
-    Configurable<string> fConfigCcdbPathZorro{"ccdb-path-zorro", "/Users/m/mpuccio/EventFiltering/OTS/Chunked/", "base path to the ccdb object for zorro"};
+    Configurable<std::string> fConfigCcdbUrl{"ccdb-url", "http://alice-ccdb.cern.ch", "url of the ccdb repository"};
+    Configurable<std::string> fConfigCcdbPathTPC{"ccdb-path-tpc", "Users/z/zhxiong/TPCPID/PostCalib", "base path to the ccdb object"};
+    Configurable<std::string> fConfigCcdbPathZorro{"ccdb-path-zorro", "/Users/m/mpuccio/EventFiltering/OTS/Chunked/", "base path to the ccdb object for zorro"};
     Configurable<int64_t> fConfigNoLaterThan{"ccdb-no-later-than", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count(), "latest acceptable timestamp of creation for the object"};
     Configurable<std::string> fConfigGeoPath{"geoPath", "GLO/Config/GeometryAligned", "Path of the geometry file"};
     Configurable<std::string> fConfigGrpMagPath{"grpmagPath", "GLO/Config/GRPMagField", "CCDB path of the GRPMagField object"};
@@ -237,6 +240,8 @@ struct TableMaker {
   // TPC postcalibration related options
   struct : ConfigurableGroup {
     Configurable<bool> fConfigComputeTPCpostCalib{"cfgTPCpostCalib", false, "If true, compute TPC post-calibrated n-sigmas(electrons, pions, protons)"};
+    Configurable<int> fConfigTPCpostCalibType{"cfgTPCpostCalibType", 1, "1: (TPCncls,pIN,eta) calibration typically for pp, 2: (eta,nPV,nLong,tLong) calibration typically for PbPb"};
+    Configurable<bool> fConfigTPCuseInterpolatedCalib{"cfgTPCpostCalibUseInterpolation", true, "If true, use interpolated calibration values (default: true)"};
     Configurable<bool> fConfigComputeTPCpostCalibKaon{"cfgTPCpostCalibKaon", false, "If true, compute TPC post-calibrated n-sigmas for kaons"};
     Configurable<bool> fConfigIsOnlyforMaps{"cfgIsforMaps", false, "If true, run for postcalibration maps only"};
     Configurable<bool> fConfigSaveElectronSample{"cfgSaveElectronSample", false, "If true, only save electron sample"};
@@ -770,6 +775,8 @@ struct TableMaker {
     int multTracklets = -1.0;
     int multTracksPV = -1.0;
     float centFT0C = -1.0;
+    float centFT0A = -1.0;
+    float centFT0M = -1.0;
 
     for (const auto& collision : collisions) {
 
@@ -898,9 +905,11 @@ struct TableMaker {
       }
       if constexpr ((TEventFillMap & VarManager::ObjTypes::CollisionCent) > 0) {
         centFT0C = collision.centFT0C();
+        centFT0A = collision.centFT0A();
+        centFT0M = collision.centFT0M();
       }
       eventExtended(bc.globalBC(), collision.alias_raw(), collision.selection_raw(), bc.timestamp(), VarManager::fgValues[VarManager::kCentVZERO],
-                    multTPC, multFV0A, multFV0C, multFT0A, multFT0C, multFDDA, multFDDC, multZNA, multZNC, multTracklets, multTracksPV, centFT0C);
+                    multTPC, multFV0A, multFV0C, multFT0A, multFT0C, multFDDA, multFDDC, multZNA, multZNC, multTracklets, multTracksPV, centFT0C, centFT0A, centFT0M);
       eventVtxCov(collision.covXX(), collision.covXY(), collision.covXZ(), collision.covYY(), collision.covYZ(), collision.covZZ(), collision.chi2());
       eventInfo(collision.globalIndex());
       if constexpr ((TEventFillMap & VarManager::ObjTypes::Zdc) > 0) {
@@ -1006,6 +1015,7 @@ struct TableMaker {
             (reinterpret_cast<TH1D*>(fStatsList->At(kStatsTracks)))->Fill(fTrackCuts.size() + static_cast<float>(iv0));
           }
         }
+        // TODO: this part should be removed since the calibration histogram can be filled as any other histogram
         if (fConfigPostCalibTPC.fConfigIsOnlyforMaps) {
           if (trackFilteringTag & (static_cast<uint64_t>(1) << VarManager::kIsConversionLeg)) { // for electron
             fHistMan->FillHistClass("TrackBarrel_PostCalibElectron", VarManager::fgValues);
@@ -1298,6 +1308,15 @@ struct TableMaker {
           VarManager::SetCalibrationObject(VarManager::kTPCKaonMean, calibList->FindObject("mean_map_kaon"));
           VarManager::SetCalibrationObject(VarManager::kTPCKaonSigma, calibList->FindObject("sigma_map_kaon"));
         }
+        if (fConfigPostCalibTPC.fConfigTPCpostCalibType == 2) {
+          VarManager::SetCalibrationObject(VarManager::kTPCElectronStatus, calibList->FindObject("status_map_electron"));
+          VarManager::SetCalibrationObject(VarManager::kTPCPionStatus, calibList->FindObject("status_map_pion"));
+          VarManager::SetCalibrationObject(VarManager::kTPCProtonStatus, calibList->FindObject("status_map_proton"));
+          if (fConfigPostCalibTPC.fConfigComputeTPCpostCalibKaon) {
+            VarManager::SetCalibrationObject(VarManager::kTPCKaonStatus, calibList->FindObject("status_map_kaon"));
+          }
+        }
+        VarManager::SetCalibrationType(fConfigPostCalibTPC.fConfigTPCpostCalibType, fConfigPostCalibTPC.fConfigTPCuseInterpolatedCalib);
       }
       if (fIsRun2 == true) {
         fGrpMagRun2 = fCCDB->getForTimeStamp<o2::parameters::GRPObject>(fConfigCCDB.fConfigGrpMagPathRun2, bcs.begin().timestamp());
@@ -1313,7 +1332,7 @@ struct TableMaker {
           VarManager::SetupMuonMagField();
         }
       }
-      std::map<string, string> metadataRCT, header;
+      std::map<std::string, std::string> metadataRCT, header;
       header = fCCDBApi.retrieveHeaders(Form("RCT/Info/RunInformation/%i", bcs.begin().runNumber()), metadataRCT, -1);
       uint64_t sor = std::atol(header["SOR"].c_str());
       uint64_t eor = std::atol(header["EOR"].c_str());

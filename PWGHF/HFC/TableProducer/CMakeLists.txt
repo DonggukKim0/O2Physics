@@ -44,6 +44,11 @@ o2physics_add_dpl_workflow(correlator-ds-hadrons
                     PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
                     COMPONENT_NAME Analysis)
 
+o2physics_add_dpl_workflow(correlator-flow-charm-hadrons
+                    SOURCES correlatorFlowCharmHadrons.cxx
+                    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore O2Physics::EventFilteringUtils
+                    COMPONENT_NAME Analysis)
+
 o2physics_add_dpl_workflow(correlator-ds-hadrons-reduced
                     SOURCES correlatorDsHadronsReduced.cxx
                     PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
@@ -61,6 +66,11 @@ o2physics_add_dpl_workflow(correlator-hfe-hadrons
 
 o2physics_add_dpl_workflow(correlator-lc-hadrons
                     SOURCES correlatorLcHadrons.cxx
+                    PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
+                    COMPONENT_NAME Analysis)
+
+o2physics_add_dpl_workflow(correlator-lc-sc-hadrons
+                    SOURCES correlatorLcScHadrons.cxx
                     PUBLIC_LINK_LIBRARIES O2Physics::AnalysisCore
                     COMPONENT_NAME Analysis)
 
